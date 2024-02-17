@@ -1,7 +1,13 @@
 import json, os, sys
-import requests
+import requests, logging
 import dlt
 
+
+logging.basicConfig(
+    level=logging.DEBUG, 
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler("./.logs/_data_api.logs")]  
+)
 
 class APIGatherer:
     """Base class for gathering data from APIs."""
@@ -16,9 +22,11 @@ class APIGatherer:
         try:
             response = requests.get(self.url, stream=True, params={"$limit": self.limit, "$offset": self.offset})
             response.raise_for_status()
+            logging.info(f"Successfully fetched data from {self.url}")
             return response.json()
         except requests.exceptions.HTTPError:
-            raise RuntimeError(f"Failed to fetch data from {self.url}")
+            logging.error(f"Failed to fetch data from {self.url}")
+            raise
 
     def gather_data(self) -> Iterator[dict]:
         """Yields data chunks in a continuous stream."""
@@ -30,7 +38,7 @@ class APIGatherer:
                 break
 
             self.offset = str(int(self.offset) + int(self.limit))
-            print(f"{self.url.split('/')[-1]}:", self.offset)  
+            logging.debug(f"Offeset: {self.offset}")
 
 class AirAPIGatherer(APIGatherer):
     """Gatherer for air quality API."""
