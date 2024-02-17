@@ -1,59 +1,88 @@
 import json, os, sys
-import requests, logging
+import requests
 import dlt
 
-
-logging.basicConfig(
-    level=logging.DEBUG, 
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler("./.logs/_data_api.logs")]  
+@dlt.resource(
+    table_name="air_quality",
+    write_disposition="merge",
+    primary_key="ID"
 )
+def gather_air_api(limit:str="1000", offset:str="0"):
 
-class APIGatherer:
-    """Base class for gathering data from APIs."""
-
-    def __init__(self, url: str, limit: str = "1000"):
-        self.url = url
-        self.limit = limit
-        self.offset = "0"
-
-    def _fetch_data(self) -> dict:
-        """Fetches data from the API and handles errors."""
+    URL = "https://data.calgary.ca/resource/g9s5-qhu5.json"
+    
+    while True:
+        response = requests.get(URL, stream=True, params= {"$limit":limit, "$offset":offset})
+        
         try:
-            response = requests.get(self.url, stream=True, params={"$limit": self.limit, "$offset": self.offset})
             response.raise_for_status()
-            logging.info(f"Successfully fetched data from {self.url}")
-            return response.json()
         except requests.exceptions.HTTPError:
-            logging.error(f"Failed to fetch data from {self.url}")
-            raise
+            break
 
-    def gather_data(self) -> Iterator[dict]:
-        """Yields data chunks in a continuous stream."""
-        while True:
-            data = self._fetch_data()
-            yield data
-
-            if self.offset == "3000": 
-                break
-
-            self.offset = str(int(self.offset) + int(self.limit))
-            logging.debug(f"Offeset: {self.offset}")
-
-class AirAPIGatherer(APIGatherer):
-    """Gatherer for air quality API."""
-
-    def __init__(self):
-        super().__init__(url="https://data.calgary.ca/resource/g9s5-qhu5.json")
-
-class WaterAPIGatherer(APIGatherer):
-    """Gatherer for water quality API."""
-
-    def __init__(self):
-        super().__init__(url="https://data.calgary.ca/resource/y8as-bmzj.json")
+        yield response.json()
+        offset = str(int(offset)+ int(limit))
+        print("Air:", offset)
 
 
-## File run method
+@dlt.resource(
+    table_name="water_quality",
+    write_disposition="merge",
+    primary_key="ID"
+)
+def gather_water_api(limit:str="1000", offset:str="0"):
+    
+    URL = "https://data.calgary.ca/resource/y8as-bmzj.json"
+
+    while True:
+        response = requests.get(URL, stream=True, params= {"$limit":limit, "$offset":offset})
+        
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            break
+
+        yield response.json()
+        offset = str(int(offset)+ int(limit))
+        print("Water:" , offset)
+
+
 @dlt.source
 def gather_api_data():
-    return [AirAPIGatherer(), WaterAPIGatherer()]  
+    return [gather_air_api, gather_water_api]
+
+
+if __name__ == "__main__":
+    
+    pipeline = dlt.pipeline(
+        pipeline_name="air_quality",
+        destination="bigquery",
+        dataset_name="environment_data" ,
+        progress="log"
+    )
+
+    info = pipeline.run(gather_api_data())
+    print(info)
+
+
+
+
+# import duckdb
+
+# conn = duckdb.connect(f"{pipeline.pipeline_name}.duckdb")
+
+# # let's see the tables
+# conn.sql(f"SET search_path = '{pipeline.dataset_name}'")
+# print('Loaded tables: ')
+# print(conn.sql("show tables"))
+
+# # and the data
+
+# print("\n\n\n http_download table below:")
+
+# rides = conn.sql("SELECT COUNT(*) FROM air_quality")
+# print(rides)
+
+# # print("\n\n\n stream_download table below:")
+
+# # passengers = conn.sql("SELECT * FROM stream_download").df()
+# # display(passengers)
