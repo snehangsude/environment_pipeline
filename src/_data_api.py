@@ -44,30 +44,8 @@ class WaterAPIGatherer(APIGatherer):
     def __init__(self):
         super().__init__(url="https://data.calgary.ca/resource/y8as-bmzj.json")
 
+
+## File run method
 @dlt.source
 def gather_api_data():
     return [AirAPIGatherer(), WaterAPIGatherer()]  
-
-# ... (pipeline setup and run)
-
-    
-# import duckdb
-
-# conn = duckdb.connect(f"{pipeline.pipeline_name}.duckdb")
-
-# # let's see the tables
-# conn.sql(f"SET search_path = '{pipeline.dataset_name}'")
-# print('Loaded tables: ')
-# print(conn.sql("show tables"))
-
-# # and the data
-
-# print("\n\n\n http_download table below:")
-
-# rides = conn.sql("SELECT COUNT(*) FROM air_quality")
-# print(rides)
-
-# # print("\n\n\n stream_download table below:")
-
-# # passengers = conn.sql("SELECT * FROM stream_download").df()
-# # display(passengers)
